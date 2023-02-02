@@ -27,14 +27,11 @@ async function authorizeUser(req, res) {
 
     if (!authHeader) return res.status(401).send("Authorization header missing");
 
-    const token = authHeader.split(" ")[1];
-
-    if (!token) return res.status(401).send("Invalid token");
+    if (!authHeader) return res.status(401).send("Invalid tokenwdawd");
 
     try {
-        const decoded = jsonwebtoken.verify(token, jwtSecret);
-        res.locals.user = decoded;
-        next();
+        const decoded = await jwt.verify(authHeader, jwtSecret);
+        return decoded;
     } catch (err) {
         console.log(err);
         return res.status(400).send("Invalid token");
@@ -102,23 +99,26 @@ app.post('/users/login', async (req, res) => {
     }
 });
 
-app.put('/tasks', async (req, res) => {
-    let task = req.body;
+app.delete('/users', async (req, res) => {
+    let user = req.body;
     try {
-        const result = await db.pool.query("update tasks set description = ?, completed = ? where id = ?", [task.description, task.completed, task.id]);
-        res.send(result);
-    } catch (err) {
-        throw err;
-    }
-});
+        if(!user.email) return res.status(400).send("Email missing");
 
-app.delete('/tasks', async (req, res) => {
-    let id = req.query.id;
-    try {
-        const result = await db.pool.query("delete from tasks where id = ?", [id]);
-        res.send(result);
+        let userDb = await db.pool.query("select * from user where email = ?", user.email);
+
+        if (userDb[0] == undefined) return res.status(500).send("User with this email doesn't exist");
+
+        let userAuthenticated = await authorizeUser(req, res);
+
+        if(!userAuthenticated) return
+
+        if(userAuthenticated.email != user.email) return res.status(401).send("You don't have the permitions to do this");
+
+        const result = await db.pool.query("delete from user where email = ?", [user.email]).bodyParser;
+        res.send("User succesfully deleted");
     } catch (err) {
-        throw err;
+        console.log(err);
+        return res.status(500).send("Server error");
     }
 });
 
